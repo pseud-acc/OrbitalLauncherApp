@@ -1,0 +1,11 @@
+name: shinyapp
+title:
+username:
+account: pseud-acc
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4586623
+bundleId: 4996479
+url: https://pseud-acc.shinyapps.io/shinyapp/
+when: 1630668717.44137
+lastSyncTime: 1630668717.44137

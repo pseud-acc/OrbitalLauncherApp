@@ -1,0 +1,149 @@
+Orbital Launch Data App
+========================================================
+date: 01/09/21
+autosize: true
+transition: rotate
+font-family: 'Lucida'
+
+<div align="center">
+<img src="clipart_rocket.png" style="height:30%;width:30%;background-color: transparent;opacity:0.4">
+</div>
+
+
+What is it?
+========================================================
+
+**An App that puts orbital launch vehicle data at your finger tips.**
+
+With the Orbital Launch Data App, a user is able to:
+ - Easily access/filter orbital launcher data about operational, in-development and retired vehicles
+ - Visually explore trends in orbital launcher payload capability - both LEO and GTO
+ 
+Whether you're a researcher or just a curious space nerd, data on orbital launch vehicles can often be difficult to find. 
+
+This app provides a **free and easy-to-use database**. In one place, a user can now explore orbital launch vehicle data such as: manufacturer, country of origin, payload capacity, number of launches, first flight.
+
+
+Filter Data
+========================================================
+
+Using the left-hand-side panel (see below), a user can restrict the orbital launchers shown based on **LEO/GTO capability, operational status and number of launches.**
+
+<div align="center">
+<img src="app_panel.png" style="height:90%;width:90%">
+</div>
+
+
+Visualise Trends 
+========================================================
+```{r, echo=FALSE}
+library(plyr)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+
+launchers <- readRDS("data/launchers.rds")
+
+input <- list()
+input$LEO_GTO <- "GTO"
+input$current_retired <- c("Retired/Cancelled","Current/Future") 
+#input$current_retired <- c("Retired/Cancelled") 
+input$log_linear <- "Log"
+input$min_launches <- 1
+
+input_LEO <- ifelse(input$LEO_GTO == "LEO",TRUE,FALSE)
+
+plot_data <- launchers %>%   mutate(Status = mapvalues(retired, from = c(1,0),
+                                                       to = c("Retired/Cancelled","Current/Future"))) %>%
+        filter(LEO.capable %in% c(1,input_LEO*1),
+               GTO.capable %in% c(1,(!input_LEO)*1),
+               Status %in% input$current_retired,
+               launches >= input$min_launches) %>%
+        mutate(payload = input_LEO*LEO.payload + (!input_LEO)*GTO.payload,
+               Retired = factor(ifelse(retired == 1, "Yes", "No")))
+
+# plot_data %>% dplyr::group_by(origin) %>% 
+#         dplyr::summarise(`Orbital Launchers` = n(), `Total Number of Launches` = sum(launches)) %>% 
+#         dplyr::arrange(desc(`Orbital Launchers`),desc(`Total Number of Launches`))
+
+#compute line of best fit
+bestfit_df <- data.frame()
+for (i in unique(plot_data$Status)){
+        newdata <- data.frame(first.flight = seq(min(plot_data$first.flight),
+                                                 max(plot_data$first.flight),1),
+                              Status = c(i)) 
+        model_lm <- glm(payload ~ first.flight, data = plot_data %>% filter(Status==i),
+                        family = Gamma(link="log"))
+        newdata$payload <- predict(model_lm, newdata = newdata, type = "response")
+        bestfit_df <- rbind(bestfit_df,newdata)
+}
+
+# Plot properties
+ylabel <- paste0(input$LEO_GTO," payload (kg)")
+scale <- ifelse(input$log_linear == "Log","log10","identity")   
+
+xmin <- floor(min(plot_data$first.flight)/10)*10
+xmax <- ceiling(max(plot_data$first.flight)/10)*10
+xticks <- seq(xmin,xmax,10)
+xlimits <- c(xmin,xmax)
+
+plot_data2 <- plot_data %>% mutate(point_labels = paste0("Vehicle = ",vehicle,
+                                                " <br />Origin = ",origin,
+                                                " <br />Manufacturer = ",manufacturer,
+                                                " <br />Number of Launches = ",launches,
+                                                " <br />", input$LEO_GTO, " Payload (kg) = ",payload,
+                                                " <br />First Flight = ",first.flight,
+                                                " <br />Lastest Flight = ",latest.flight))
+
+bestfit_df2 <- bestfit_df %>% mutate(point_labels = paste0("Vehicle = N/A",
+                                                          " <br />Origin = N/A",
+                                                          " <br />Manufacturer = N/A",
+                                                          " <br />Number of Launches = N/A",
+                                                          " <br />",input$LEO_GTO," Payload (kg) =",round(payload,2),
+                                                          " <br />First Flight =",first.flight,
+                                                          " <br />Lastest Flight = N/A"))
+
+
+if(length(input$current_retired) > 1){
+      p<-  ggplot(data = plot_data2, 
+               aes(x = first.flight , y = payload, colour = Status,
+                   text=point_labels)) + 
+                geom_point() + scale_y_continuous(trans=scale) +
+                xlab("First Flight") + ylab(ylabel) +
+        labs(title="Solid line: exponential fit of payload vs. first flight ")+
+                geom_line(data = bestfit_df2, aes(x = first.flight, y = payload, colour = Status, group=Status))+
+                theme_bw() +
+                theme(axis.line = element_line(colour = "black"),
+                      panel.background = element_blank(),
+                      plot.title = element_text(face = "italic", colour = "grey", size = 8)) +
+                scale_x_continuous(breaks = xticks, limits = xlimits)
+} else {
+        p<-    ggplot(data = plot_data2, 
+               aes(x = first.flight , y = payload,
+                   text=point_labels)) + 
+                geom_point() + scale_y_continuous(trans=scale) +
+                xlab("First Flight") + ylab(ylabel) +
+          ggtitle("Solid line: exponential fit of payload vs. first flight ") +
+                geom_line(data = bestfit_df2, aes(x = first.flight, y = payload, group = 1))+
+                theme_bw() +
+                theme(axis.line = element_line(colour = "black"),
+                      panel.background = element_blank(),
+                      plot.title = element_text(face = "italic", colour = "grey", size = 8)) +
+                scale_x_continuous(breaks = xticks, limits = xlimits) 
+}  
+pl <- ggplotly(p, tooltip="text")
+
+htmlwidgets::saveWidget(as_widget(pl), "pl.html")
+```
+**View trends in payload capacity over time**
+
+<iframe src="pl.html" style="position:absolute;height:80%;width:80%"></iframe>
+
+Summarise by Country
+========================================================
+
+**Summarise orbital launchers by country in tabular format**
+
+<div align="center">
+<img src="app_table.png" style="height:100%;width:100%">
+</div>

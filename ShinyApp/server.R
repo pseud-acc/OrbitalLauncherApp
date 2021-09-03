@@ -14,6 +14,10 @@ library(dplyr)
 library(DT)
 library(plotly)
 
+url <- "https://pseud-acc.github.io/OrbitalLauncherApp/data/launchers.rds"
+launchers <- readRDS(gzcon(url(url)))
+
+
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
     

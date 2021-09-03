@@ -24,7 +24,7 @@ shinyUI(fluidPage(
     ),    
 
     # Application title
-    titlePanel("Orbital Launcher Data"),
+    titlePanel("Orbital Launch Data App"),
 
     
     sidebarLayout(
